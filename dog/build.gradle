@@ -1,0 +1,24 @@
+plugins {
+    id 'java'
+}
+
+sourceSets {
+    main {
+        java['srcDirs'] = ['src']
+        resources['srcDirs'] = ['res']
+    }
+    test {
+        java['srcDirs'] = ['test/src']
+        resources['srcDirs'] = ['test/res']
+    }
+}
+jar {
+    archiveClassifier.convention("alpha")
+    archiveClassifier.set("alpha")
+    manifest.attributes.put('Manifest-Version', project.version)
+    destinationDirectory.set(file("../out/app/" + "com.yuyan.dog"))
+    doLast {
+        println archiveFile.get()
+        println "jar tf ${archiveFile.get()}".execute().text.trim()
+    }
+}

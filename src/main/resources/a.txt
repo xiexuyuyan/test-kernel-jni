@@ -1,0 +1,506 @@
+{
+        char vmOptionLibraryPath[1024] = "-Djava.library.path=";
+        char droidRuntimeJniLibraryPath[128] =
+                ".:/mnt/c/Users/23517/CLionProjects/untitled"
+                "/out/lib/frameworks/droid/jni";
+        strcat(vmOptionLibraryPath, droidRuntimeJniLibraryPath);
+
+        vmOption[1].optionString = vmOptionLibraryPath;
+        vmInitArgs.nOptions++;
+
+        std::cout<<"vmOption[libpath]: "<<vmOption[1].optionString<<std::endl;
+    }
+
+    {
+            char vmOptionClassPath[1024] = "-Djava.class.path=";
+            char *envClasspath = getenv("CLASSPATH");
+
+            if (envClasspath) {
+                strcat(vmOptionClassPath, envClasspath);
+                vmOption[0].optionString = vmOptionClassPath;
+                vmInitArgs.nOptions++;
+            }
+
+            char systemServerClassPath[128] =
+                    ":/mnt/c/Users/23517/IdeaProjects/Dust/build/classes/java/main/";
+            strcat(vmOptionClassPath, systemServerClassPath);
+
+            std::cout<<"vmOption[classpath]: "<<vmOption[0].optionString<<std::endl;
+        }
+
+    const char* ctag = nullptr;
+    const char* cmsg = nullptr;
+
+    ctag = env->GetStringUTFChars(tag, nullptr);
+    cmsg = env->GetStringUTFChars(msg, nullptr);
+
+    std::cout<<"ctag: "<<ctag<<", cmsg: "<<cmsg<<std::endl;
+
+
+#include <sys/time.h>
+
+#include <cstring>
+#include <iostream>
+#include <ctime>
+#include <jni.h>
+#include <unistd.h>
+
+
+JavaVM* mJvm = nullptr;
+JNIEnv* mEnv = nullptr;
+
+void printCurrentTime();
+
+void jvmInit(JavaVM* jvm, JNIEnv* env);
+void jvmDestroy(JavaVM* jvm, JNIEnv* env);
+
+void loadRoot(JNIEnv* env, int count);
+
+int main() {
+    jvmInit(mJvm, mEnv);
+    int pid = getpid();
+    // pid = fork();
+
+    if (pid == 0) {
+        std::cout<<"into child, before load Root"<<std::endl;
+        loadRoot(mEnv, 3);
+        std::cout<<"into child, after load Root"<<std::endl;
+    } else {
+        std::cout<<"parent pid = "<<getpid()<<std::endl;
+        loadRoot(mEnv, 5);
+    }
+
+    if (pid == getpid()) { // parent
+        sleep(5);
+    }
+
+    std::cout<<"CreateJvm main end pid = "<<getpid()<<std::endl;
+    jvmDestroy(mJvm, mEnv);
+    return 0;
+}
+
+void loadRoot(JNIEnv* env, int count) {
+    std::cout<<"into Root, before find class"<<std::endl;
+    jclass rooClz = env->FindClass("Root");
+    std::cout<<"into Root, after find class"<<std::endl;
+    if (rooClz == nullptr) {
+        printCurrentTime();
+        std::cout<<"CreateJvm.cpp find Root.class failed!"<<std::endl;
+    } else {
+        printCurrentTime();
+        std::cout<<"CreateJvm.cpp find Root.class success!"<<std::endl;
+        jmethodID mainMethod = env->GetStaticMethodID(
+                rooClz, "start", "(I)V");
+        if (mainMethod == nullptr) {
+            printCurrentTime();
+            std::cout<<"CreateJvm.cpp find Root.main(String[]) failed!"<<std::endl;
+        } else {
+            printCurrentTime();
+            std::cout<<"CreateJvm.cpp find Root.main success!"<<std::endl;
+            env->CallStaticVoidMethod(rooClz, mainMethod, count);
+        }
+    }
+}
+
+void jvmInit(JavaVM* jvm, JNIEnv* env) {
+    JavaVMInitArgs vmInitArgs;
+    JavaVMOption vmOption[3];
+    jint ret;
+
+    vmInitArgs.version = JNI_VERSION_1_8;
+    vmInitArgs.nOptions = 0;
+    vmInitArgs.ignoreUnrecognized = false;
+
+    {
+        char vmOptionClassPath[1024] = "-Djava.class.path=";
+        char systemServerClassPath[128] =
+                "/mnt/c/Users/23517/IdeaProjects/Dust/build/classes/java/main/";
+        strcat(vmOptionClassPath, systemServerClassPath);
+
+        vmOption[0].optionString = vmOptionClassPath;
+        vmInitArgs.nOptions++;
+
+        printCurrentTime();
+        std::cout<<"CreateJvm.cpp vmOption[classpath]: "<<vmOption[0].optionString<<std::endl;
+
+
+        char vmOptionLibraryPath[1024] = "-Djava.library.path=";
+        char droidRuntimeJniLibraryPath[128] =
+                "/mnt/c/Users/23517/CLionProjects/untitled/out/lib/frameworks/droid/runtime/jni";
+        strcat(vmOptionLibraryPath, droidRuntimeJniLibraryPath);
+
+        vmOption[1].optionString = vmOptionLibraryPath;
+        vmInitArgs.nOptions++;
+
+        printCurrentTime();
+        std::cout<<"CreateJvm.cpp vmOption[libpath]: "<<vmOption[1].optionString<<std::endl;
+
+    }
+
+    if (vmInitArgs.nOptions > 0) {
+        vmInitArgs.options = vmOption;
+    }
+
+    ret = JNI_CreateJavaVM(&jvm, (void **)&env, &vmInitArgs);
+
+    if (ret < 0) {
+        printCurrentTime();
+        std::cout<<"CreateJvm.cpp create jvm error, code = "<<ret<<std::endl;
+        return;
+    }
+
+    mJvm = jvm;
+    mEnv = env;
+}
+
+void jvmDestroy(JavaVM* jvm, JNIEnv* env) {
+    jvm->DestroyJavaVM();
+    jvm = nullptr;
+    env = nullptr;
+    printCurrentTime();
+    std::cout<<"Exit"<<std::endl;
+}
+
+void printCurrentTime() {
+    struct timeval curTime{};
+    gettimeofday(&curTime, nullptr);
+    time_t curT = curTime.tv_sec;
+    tm* dateTime = localtime(&curT);
+    long uTime = curTime.tv_usec % (1000*1000);
+    double ufTime = (double)uTime / 1000;
+    std::cout<<"["
+             <<dateTime->tm_year + 1900
+             <<"-"<<dateTime->tm_mon + 1
+             <<"-"<<dateTime->tm_mday
+             <<" "<<dateTime->tm_hour
+             <<":"<<dateTime->tm_min
+             <<":"<<dateTime->tm_sec
+             <<" "<<ufTime<<"]";
+}
+
+
+
+import java.io.File;
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
+
+public class Root {
+    private static final String TAG = "Root";
+
+    public static void start(int count) throws MalformedURLException, ClassNotFoundException, InvocationTargetException, InstantiationException, IllegalAccessException, NoSuchMethodException {
+        System.out.println("Root.java start() count = " + count);
+        // main(new String[]{"start from count"});
+        // someTask(count);
+        int cpid = droid.internal.os.ZygoteInit.nativeForkSystemServer(10086);
+        System.out.println("Root.java start() cpid = " + cpid);
+        if (cpid == 0) {
+            someLocalTask(3);
+        } else {
+            //_someLocalTask(5);
+        }
+    }
+
+    public static void main(String[] args) throws ClassNotFoundException, MalformedURLException, InstantiationException, IllegalAccessException, NoSuchMethodException, InvocationTargetException {
+        // new Root().loadClassFromJar();
+        ClassLoader dogClassLoader = Root.class.getClassLoader();
+        System.out.println("Root/main() Root.class ClassLoader = " + dogClassLoader);
+    }
+    public void loadClassFromJar() throws ClassNotFoundException, MalformedURLException, InstantiationException, IllegalAccessException, NoSuchMethodException, InvocationTargetException {
+        String projectDir = "/mnt/c/Users/23517/IdeaProjects/Dust";
+        File dogJarFile = new File(projectDir + "/out/app/com.yuyan.dog/dog-alpha.jar");
+        URL dogJarUrl = dogJarFile.toURI().toURL();
+        ClassLoader dogUrlClassloader = new URLClassLoader(new URL[]{dogJarUrl});
+        System.out.println("Root/main() (jar: com.yuyan.dog)UrlClassloader = " + dogUrlClassloader);
+        Class<?> clz = dogUrlClassloader.loadClass("com.yuyan.dog.ParentDog");
+        Object parentDog = clz.newInstance();
+        Method main = clz.getDeclaredMethod("fun", String.class);
+        main.invoke(parentDog, "hello world");
+    }
+
+    public static void someLocalTask(final int count) {
+        final int pid = getPid();
+        System.out.println("Root someLocalTask() pid = " + pid);
+        for (int i = 0; i < count; i++) {
+            System.out.println("Root in pid = " + pid + ", i = " + i);
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    public static void _someLocalTask(final int count) {
+        final int pid = getPid();
+        System.out.println("Root _someLocalTask() pid = " + pid);
+        for (int i = 0; i < count; i++) {
+            System.out.println("Root in pid = " + pid + ", i = " + i);
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public static void someTask(final int count) {
+        final int pid = getPid();
+        System.out.println("Root pid = " + pid);
+
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < count; i++) {
+                    System.out.println("Root in pid = " + pid + ", i = " + i);
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        });
+
+        System.out.println("after new Thread(), t = " + t);
+        t.start();
+    }
+
+    private static int getPid() {
+        RuntimeMXBean runtime = ManagementFactory.getRuntimeMXBean();
+        String name = runtime.getName();
+        try {
+            return Integer.parseInt(name.substring(0, name.indexOf('@')));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+}
+
+
+import java.util.Arrays;
+
+public class Root {
+    private static final String TAG = "Root";
+
+    public static void _main(String[] args) {
+        System.out.println(TAG + "/main(): ");
+    }
+
+    public static void main(String[] args) {
+        System.out.println(TAG + "/main(): in " + droid.internal.os.ZygoteInit.nativeGetPid());
+
+        int pid = 1;
+        pid = droid.internal.os.ZygoteInit.nativeForkSystemServer(0);
+        if (pid == 0) { // child
+            // Utils.sleep(1);
+            // System.out.println(TAG + "/main(): in c, child  pid  = " + droid.internal.os.ZygoteInit.nativeGetPid());
+        } else { // parent
+            Utils.sleepNewThread(3);
+            // droid.internal.os.ZygoteInit.nativeDestroyVM();
+            // System.out.println(TAG + "/main(): in p, child  pid  = " + pid);
+            // System.out.println(TAG + "/main(): in p, parent pid  = " + droid.internal.os.ZygoteInit.nativeGetPid());
+        }
+    }
+}
+
+
+import java.util.Arrays;
+
+public class Root {
+    private static final String TAG = "Root";
+
+    public static void exit() {
+        System.out.println(TAG + "/exit(): ");
+    }
+
+    public static void main(String[] args) {
+        System.out.println(TAG + "/main(): in " + droid.internal.os.ZygoteInit.nativeGetPid());
+
+        int pid = 1;
+        pid = droid.internal.os.ZygoteInit.nativeForkSystemServer(0);
+        if (pid == 0) { // child
+            Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    for (Thread thread : _getAllThreads()) {
+                        if (thread.getName().equals("main")) {
+                            System.out.println(TAG + "/run():" +
+                                    " name = " + thread.getName()
+                                    + ", thread.isAlive() = " + thread.isAlive());
+                        }
+                    }
+                }}));
+            droid.internal.os.ZygoteInit.nativeExit(0);
+            /*Utils.sleep(3);
+
+            System.out.println(TAG + "/main(): child ----------------start");
+            getAllThreads();
+            System.out.println(TAG + "/main(): child ----------------end");
+
+            Utils.sleep(5);
+            System.out.println(TAG + "/main()  child:" +
+                    " thread name = " + Thread.currentThread().getName() +
+                    " pid = " + droid.internal.os.ZygoteInit.nativeGetPid() +
+                    " ppid = " + droid.internal.os.ZygoteInit.nativeGetParentPid());
+
+            Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    for (Thread thread : _getAllThreads()) {
+                        if (thread.getName().equals("main")) {
+                            System.out.println(TAG + "/run():" +
+                                    " name = " + thread.getName()
+                                    + ", thread.isAlive() = "+ thread.isAlive());
+                        }
+                    }
+
+                    System.out.println(TAG + "/main(): child hook----------------start");
+                    getAllThreads();
+                    System.out.println(TAG + "/main(): child hook----------------end");
+
+                    System.out.println(TAG + "/main()   hook:" +
+                            " thread name = " + Thread.currentThread().getName() +
+                            " pid = " + droid.internal.os.ZygoteInit.nativeGetPid() +
+                            " ppid = " + droid.internal.os.ZygoteInit.nativeGetParentPid());
+                }
+            }));*/
+        } else { // parent
+            Utils.sleep(1);
+            System.out.println(TAG + "/main(): parent----------------start");
+            getAllThreads();
+            System.out.println(TAG + "/main(): parent----------------end");
+
+            Utils.sleep(3);
+            System.out.println(TAG + "/main() parent:" +
+                    " thread name = " + Thread.currentThread().getName() +
+                    " pid = " + droid.internal.os.ZygoteInit.nativeGetPid() +
+                    " ppid = " + droid.internal.os.ZygoteInit.nativeGetParentPid());
+            Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+                @Override
+                public void run() {
+
+                    System.out.println(TAG + "/main(): parent hook----------------start");
+                    getAllThreads();
+                    System.out.println(TAG + "/main(): parent hook----------------end");
+
+                    System.out.println(TAG + "/main()   hook:" +
+                            " thread name = " + Thread.currentThread().getName() +
+                            " pid = " + droid.internal.os.ZygoteInit.nativeGetPid() +
+                            " ppid = " + droid.internal.os.ZygoteInit.nativeGetParentPid());
+                }
+            }));
+        }
+    }
+
+    public static Thread[] _getAllThreads() {
+        ThreadGroup group = Thread.currentThread().getThreadGroup();
+        ThreadGroup topGroup = group;
+        // 遍历线程组树，获取根线程组
+        while (group != null) {
+            topGroup = group;
+            group = group.getParent();
+        }
+        // 激活的线程数再加一倍，防止枚举时有可能刚好有动态线程生成
+        int slackSize = topGroup.activeCount() * 2;
+        Thread[] slackThreads = new Thread[slackSize];
+        // 获取根线程组下的所有线程，返回的actualSize便是最终的线程数
+        int actualSize = topGroup.enumerate(slackThreads);
+        Thread[] atualThreads = new Thread[actualSize];
+        // 复制slackThreads中有效的值到atualThreads
+        System.arraycopy(slackThreads, 0, atualThreads, 0, actualSize);
+
+        return atualThreads;
+    }
+    public static void getAllThreads() {
+        Thread[] atualThreads = _getAllThreads();
+        System.out.println("Threads size is " + atualThreads.length);
+        for (Thread thread : atualThreads) {
+            System.out.println("Thread name : " + thread.getName());
+        }
+    }
+}
+
+import droid.internal.os.ZygoteInit;
+import droid.message.Handler;
+import droid.message.Looper;
+import droid.message.Message;
+
+public class Root {
+    private static final String TAG = "Root";
+
+    public static void main(String[] args) {
+        System.out.println(TAG + "/main(): in " + ZygoteInit.nativeGetPid());
+
+        int pid = 1;
+        pid = ZygoteInit.nativeForkSystemServer(0);
+        if (pid == 0) { // child
+            Looper.prepareMainLooper();
+
+            Looper myLooper = Looper.myLooper();
+            Handler handler =new Handler() {
+                @Override
+                public void handleMessage(Message msg) {
+                    System.out.println("child msg = " + msg);
+                    if (msg.what == 4) {
+                        ZygoteInit.nativeExit(0);
+                    }
+                }
+            };
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    for (int i = 0; i < 5; i++) {
+                        Message message = new Message();
+                        message.what = i;
+                        handler.sendMessage(message);
+                    }
+                }
+            }).start();
+
+            Looper.loop();
+
+            try {
+                throw new Exception("ContextThread looper stop");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        } else { // parent
+            Looper.prepareMainLooper();
+
+
+            Looper myLooper = Looper.myLooper();
+            Handler handler =new Handler() {
+                @Override
+                public void handleMessage(Message msg) {
+                    System.out.println("parent msg = " + msg);
+                }
+            };
+
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    for (int i = 0; i < 7; i++) {
+                        Message message = new Message();
+                        message.what = i;
+                        handler.sendMessage(message);
+                    }
+                }
+            }).start();
+
+            Looper.loop();
+
+            try {
+                throw new Exception("ContextThread looper stop");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+
+ninja libdroid_runtime.so && java -cp  ../../IdeaProjects/Dust/build/classes/java/main/ -Djava.library.path=./out/lib/frameworks/droid/runtime/jni/:./out/lib/ Root server

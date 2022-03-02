@@ -1,0 +1,29 @@
+plugins {
+    id 'java'
+}
+
+group 'com.yuyan'
+version '0.0.1'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+}
+
+test {
+    useJUnitPlatform()
+}
+jar {
+    archiveClassifier.convention("alpha")
+    archiveClassifier.set("alpha")
+    manifest.attributes.put('Manifest-Version', project.version)
+    destinationDirectory.set(file("out/droid/core/" + "zygote"))
+    doLast {
+        println archiveFile.get()
+        println "jar tf ${archiveFile.get()}".execute().text.trim()
+    }
+}
